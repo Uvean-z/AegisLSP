@@ -1,0 +1,106 @@
+[sandbox]
+enabled = true
+type = "docker"
+image = "golang:1.24-alpine"
+timeout = 300
+work_dir = "/workspace"
+memory_limit = 512
+cpu_limit = 1.0
+
+[sandbox.environment]
+GOPATH = "/go"
+GOFLAGS = "-mod=vendor"
+
+[approvals]
+enabled = true
+auto_approve_low_risk = false
+remember_decisions = true
+timeout = 60
+risk_threshold = "medium"
+
+[[approvals.rules]]
+operation = "file_delete"
+risk_level = "high"
+auto_approve = false
+
+[[approvals.rules]]
+operation = "network_request"
+risk_level = "medium"
+auto_approve = false
+
+# Error pattern definitions for multi-language compiler/linter output parsing.
+# Each pattern must have exactly 4 capture groups: (1) file, (2) line, (3) column, (4) message.
+# Patterns are tried in priority order (lower = higher priority).
+
+[[error_patterns]]
+language = "go"
+regex = '^([^:]+):(\d+):(\d+):\s*(.+)$'
+priority = 0
+
+[[error_patterns]]
+language = "typescript"
+regex = '^(.+)\((\d+),(\d+)\):\s*(.+)$'
+priority = 10
+
+[[error_patterns]]
+language = "rust"
+regex = '^\s*--> ([^:]+):(\d+):(\d+)(.*)'
+priority = 10
+
+# ---------------------------------------------------------------------------
+# Deduplication normalization rules
+# ---------------------------------------------------------------------------
+# Language-specific regex rules for normalizing compiler/linter error messages.
+# These collapse variable parts (identifiers, types, etc.) into fixed placeholders
+# so that cascading errors from the same root cause are folded into one entry.
+
+[dedup]
+
+[[dedup.languages]]
+language = "go"
+keywords = ["undefined", "cannot", "use", "as", "type", "in", "call", "to",
+            "not", "enough", "many", "arguments", "missing", "return",
+            "syntax", "error", "expected", "declared", "but", "unused",
+            "imported", "and"]
+
+  [[dedup.languages.rules]]
+  regex = '(undefined:\s*)\w+'
+  replacement = '${1}VAR'
+
+  [[dedup.languages.rules]]
+  regex = '(cannot use\s+)\w+(\s+\(type\s+)\w+(\)\s+as type\s+)\w+'
+  replacement = '${1}VAR${2}TYPE${3}TYPE'
+
+  [[dedup.languages.rules]]
+  regex = '(\w+)\s+(declared but not used)'
+  replacement = 'VAR ${2}'
+
+  [[dedup.languages.rules]]
+  regex = '(in call to\s+)\S+'
+  replacement = '${1}FUNC'
+
+[[dedup.languages]]
+language = "typescript"
+keywords = ["error", "cannot", "find", "name", "type", "is", "not",
+            "assignable", "parameter", "expected", "module", "declared"]
+
+  [[dedup.languages.rules]]
+  regex = "(?i)cannot find name '(\\w+)'"
+  replacement = "Cannot find name 'VAR'"
+
+  [[dedup.languages.rules]]
+  regex = "(?i)type '([^']+)' is not assignable to type '([^']+)'"
+  replacement = "Type 'TYPE' is not assignable to type 'TYPE'"
+
+[[dedup.languages]]
+language = "python"
+keywords = ["name", "is", "not", "defined", "type", "error", "unexpected",
+            "syntax", "import", "no", "module", "attribute"]
+
+  [[dedup.languages.rules]]
+  regex = "(?i)name '(\\w+)' is not defined"
+  replacement = "name 'VAR' is not defined"
+
+  [[dedup.languages.rules]]
+  regex = "(?i)no module named '(\\w+)'"
+  replacement = "No module named 'MOD'"

@@ -1,0 +1,51 @@
+# =============================================================================
+# AegisLSP — GitHub Actions CI Guard
+# =============================================================================
+#
+# This workflow integrates AegisLSP into CI/CD to protect against supply-chain
+# attacks and high-risk command execution.
+#
+# How it works:
+#   - AegisLSP wraps build/test commands with an approval gate that classifies
+#     every command by risk level (low / medium / high / critical).
+#   - In headless environments (CI, pipes, containers), AegisLSP automatically
+#     detects the absence of an interactive TTY and activates "auto-deny" mode:
+#     any high-risk or critical operation is blocked without prompting.
+#   - This prevents compromised build scripts (e.g., injected `curl | sh`,
+#     `rm -rf /`, credential exfiltration) from executing in CI.
+#
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build & Test (AegisLSP protected)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Install AegisLSP
+        run: go install github.com/Uvean-z/aegislsp/cmd/aegislsp@latest
+
+      - name: Build with AegisLSP protection
+        run: aegis run --no-sandbox -- go build ./...
+
+      - name: Test with AegisLSP protection
+        run: aegis run --no-sandbox -- go test ./...
