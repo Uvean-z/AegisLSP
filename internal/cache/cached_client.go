@@ -3,7 +3,10 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"net/url"
 	"os"
+	"runtime"
+	"strings"
 
 	"github.com/Uvean-z/aegislsp/internal/lspclient"
 	"github.com/Uvean-z/aegislsp/internal/types"
@@ -151,15 +154,24 @@ func (c *CachedLSPClient) IsInitialized() bool {
 
 // --- Helpers ---
 
-// uriToPath strips the file:/// prefix and converts to a local path.
+// uriToPath converts file:// URIs into local filesystem paths.
 func uriToPath(uri string) string {
-	path := uri
-	if len(path) >= 8 && path[:8] == "file:///" {
-		path = path[8:]
+	if !strings.HasPrefix(uri, "file://") {
+		return uri
 	}
-	// On Windows, file:///D:/foo → D:/foo
-	if len(path) >= 2 && path[0] >= 'A' && path[0] <= 'Z' && path[1] == ':' {
-		// Already a Windows path.
+
+	u, err := url.Parse(uri)
+	if err != nil {
+		return strings.TrimPrefix(uri, "file://")
+	}
+
+	path, err := url.PathUnescape(u.Path)
+	if err != nil {
+		path = u.Path
+	}
+
+	if runtime.GOOS == "windows" && len(path) >= 3 && path[0] == '/' && path[2] == ':' {
+		return path[1:]
 	}
 	return path
 }

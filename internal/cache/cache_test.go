@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 
@@ -327,12 +328,17 @@ func TestFileHash_NonexistentFile(t *testing.T) {
 }
 
 func TestUriToPath(t *testing.T) {
+	windowsPath := "/D:/project/main.go"
+	if runtime.GOOS == "windows" {
+		windowsPath = "D:/project/main.go"
+	}
+
 	tests := []struct {
 		uri  string
 		want string
 	}{
-		{"file:///D:/project/main.go", "D:/project/main.go"},
-		{"file:///home/user/main.go", "home/user/main.go"},
+		{"file:///D:/project/main.go", windowsPath},
+		{"file:///home/user/main.go", "/home/user/main.go"},
 		{"/home/user/main.go", "/home/user/main.go"},
 	}
 	for _, tt := range tests {

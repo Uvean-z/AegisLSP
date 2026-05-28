@@ -432,36 +432,36 @@ func runDirectly(ctx context.Context, inter interceptor.Interceptor, command []s
 		return -1, fmt.Errorf("start command: %w", err)
 	}
 
-	// Drain entries in background.
+	// Drain entries and errors in background.
 	var allEntries []types.Entry
 	var allErrors []types.ErrorEntry
-	drainDone := make(chan struct{})
+	var drainWG sync.WaitGroup
+
+	drainWG.Add(1)
 	go func() {
+		defer drainWG.Done()
 		for e := range inter.Entries() {
 			allEntries = append(allEntries, e)
-			// Forward stdout to terminal.
-			if e.Source == types.SourceStdout {
+			switch e.Source {
+			case types.SourceStdout:
 				fmt.Println(e.Text)
-			}
-		}
-		for e := range inter.Errors() {
-			allErrors = append(allErrors, e)
-		}
-		close(drainDone)
-	}()
-
-	// Capture stderr for error processing.
-	go func() {
-		for e := range inter.Entries() {
-			if e.Source == types.SourceStderr {
+			case types.SourceStderr:
 				stderrBuf.WriteString(e.Text)
 				stderrBuf.WriteByte('\n')
 			}
 		}
 	}()
 
+	drainWG.Add(1)
+	go func() {
+		defer drainWG.Done()
+		for e := range inter.Errors() {
+			allErrors = append(allErrors, e)
+		}
+	}()
+
 	waitErr := inter.Wait()
-	<-drainDone
+	drainWG.Wait()
 
 	if waitErr != nil {
 		if exitErr, ok := waitErr.(*exec.ExitError); ok {
