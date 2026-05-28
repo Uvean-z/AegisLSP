@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"context"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -262,13 +263,34 @@ func TestNewSandboxLauncher_NoneType(t *testing.T) {
 // NativeLauncher tests
 // ---------------------------------------------------------------------------
 
+func shellCommand(script string) []string {
+	if runtime.GOOS == "windows" {
+		return []string{"cmd", "/c", script}
+	}
+	return []string{"sh", "-c", script}
+}
+
+func echoEnvCommand(name string) []string {
+	if runtime.GOOS == "windows" {
+		return shellCommand("echo %" + name + "%")
+	}
+	return shellCommand("echo $" + name)
+}
+
+func printWorkDirCommand() []string {
+	if runtime.GOOS == "windows" {
+		return shellCommand("cd")
+	}
+	return shellCommand("pwd")
+}
+
 func TestNativeLauncher_Run_SuccessCommand(t *testing.T) {
 	launcher := NewNativeLauncher()
 	defer launcher.Close()
 
 	var buf strings.Builder
 	code, err := launcher.Run(context.Background(), RunConfig{
-		Command: []string{"cmd", "/c", "echo", "hello"},
+		Command: shellCommand("echo hello"),
 	}, &buf)
 
 	if err != nil {
@@ -288,7 +310,7 @@ func TestNativeLauncher_Run_FailingCommand(t *testing.T) {
 
 	var buf strings.Builder
 	code, err := launcher.Run(context.Background(), RunConfig{
-		Command: []string{"cmd", "/c", "exit", "42"},
+		Command: shellCommand("exit 42"),
 	}, &buf)
 
 	if err == nil {
@@ -315,7 +337,7 @@ func TestNativeLauncher_Run_WithEnvVars(t *testing.T) {
 
 	var buf strings.Builder
 	code, err := launcher.Run(context.Background(), RunConfig{
-		Command: []string{"cmd", "/c", "echo", "%AEGIS_TEST_VAR%"},
+		Command: echoEnvCommand("AEGIS_TEST_VAR"),
 		Env:     map[string]string{"AEGIS_TEST_VAR": "test_value"},
 	}, &buf)
 
@@ -333,7 +355,7 @@ func TestNativeLauncher_Run_WithWorkDir(t *testing.T) {
 
 	var buf strings.Builder
 	code, err := launcher.Run(context.Background(), RunConfig{
-		Command: []string{"cmd", "/c", "cd"},
+		Command: printWorkDirCommand(),
 		WorkDir: t.TempDir(),
 	}, &buf)
 
