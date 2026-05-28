@@ -2,12 +2,41 @@ package mcp
 
 import (
 	"encoding/json"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/Uvean-z/aegislsp/internal/interceptor"
 	"github.com/Uvean-z/aegislsp/internal/types"
 )
+
+func mcpShellCommand(script string) []string {
+	if runtime.GOOS == "windows" {
+		return []string{"cmd", "/c", script}
+	}
+	return []string{"sh", "-c", script}
+}
+
+func aegisRunRequest(t *testing.T, id int, command []string) string {
+	t.Helper()
+
+	req := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"id":      id,
+		"method":  "tools/call",
+		"params": map[string]interface{}{
+			"name": "aegis_run",
+			"arguments": map[string]interface{}{
+				"command": command,
+			},
+		},
+	}
+	b, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	return string(b)
+}
 
 func TestRegisterAegisTools_ToolsList(t *testing.T) {
 	srv := NewServer(nil, nil)
@@ -51,7 +80,7 @@ func TestAegisRun_SimpleCommand(t *testing.T) {
 	RegisterAegisTools(srv, nil, nil, nil)
 
 	// Run a simple echo command.
-	resp := roundTrip(t, srv, `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"aegis_run","arguments":{"command":["cmd","/c","echo","hello"]}}}`)
+	resp := roundTrip(t, srv, aegisRunRequest(t, 3, mcpShellCommand("echo hello")))
 
 	if resp.Error != nil {
 		t.Fatalf("unexpected JSON-RPC error: %v", resp.Error)
@@ -83,7 +112,7 @@ func TestAegisRun_WithCompilerErrors(t *testing.T) {
 
 	// Simulate compiler error output by running a command that writes to stderr
 	// in Go compiler error format.
-	resp := roundTrip(t, srv, `{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"aegis_run","arguments":{"command":["cmd","/c","echo main.go:10:5: undefined: foo 1>&2"]}}}`)
+	resp := roundTrip(t, srv, aegisRunRequest(t, 4, mcpShellCommand("echo main.go:10:5: undefined: foo >&2")))
 
 	if resp.Error != nil {
 		t.Fatalf("unexpected JSON-RPC error: %v", resp.Error)
