@@ -1,6 +1,7 @@
 # Binaries
-aegislsp
-aegislsp.exe
+/aegis
+/aegislsp
+/aegislsp.exe
 *.exe
 *.exe~
 *.dll
