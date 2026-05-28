@@ -59,7 +59,7 @@ jobs:
           go-version: '1.24'
 
       - name: Install AegisLSP
-        run: go install github.com/Uvean-z/aegislsp/cmd/aegislsp@latest
+        run: go install ./cmd/aegislsp
 
       # --- Build step ---
       # AegisLSP wraps `go build` and intercepts stderr for structured error

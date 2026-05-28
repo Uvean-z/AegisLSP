@@ -41,11 +41,12 @@ jobs:
         with:
           go-version: '1.24'
 
-      - name: Install AegisLSP
-        run: go install github.com/Uvean-z/aegislsp/cmd/aegislsp@latest
+      - name: Build AegisLSP
+        run: go build -o ./aegis ./cmd/aegislsp
 
       - name: Build with AegisLSP protection
-        run: aegis run --no-sandbox -- go build ./...
+        run: ./aegis run --no-sandbox -- go build ./...
 
       - name: Test with AegisLSP protection
-        run: aegis run --no-sandbox -- go test ./...
+        run: ./aegis run --no-sandbox -- go test ./...
+
