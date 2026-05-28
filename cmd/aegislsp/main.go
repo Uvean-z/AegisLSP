@@ -105,6 +105,15 @@ func printUsage() {
 		colorBold, colorReset)
 }
 
+func splitRunArgs(args []string) ([]string, []string) {
+	for i, arg := range args {
+		if arg == "--" {
+			return args[:i], args[i+1:]
+		}
+	}
+	return args, nil
+}
+
 func handleRun(args []string) {
 	fs := flag.NewFlagSet("run", flag.ExitOnError)
 	configPath := fs.String("config", "", "Path to TOML configuration file")
@@ -114,29 +123,11 @@ func handleRun(args []string) {
 	timeout := fs.Int("timeout", 300, "Command timeout in seconds")
 	cachePath := fs.String("cache", "", "Path to semantic cache file (enables persistent LSP result caching)")
 
-	// Parse flags; everything after "--" is the command.
-	var command []string
-	for i, arg := range args {
-		if arg == "--" {
-			command = args[i+1:]
-			break
-		}
-		if !strings.HasPrefix(arg, "-") {
-			// Not a flag and no "--" separator — treat rest as command.
-			command = args[i:]
-			break
-		}
-	}
-
-	// Parse flags from the args before "--".
-	flagArgs := args
-	for i, arg := range args {
-		if arg == "--" {
-			flagArgs = args[:i]
-			break
-		}
-	}
+	flagArgs, command := splitRunArgs(args)
 	fs.Parse(flagArgs)
+	if command == nil {
+		command = fs.Args()
+	}
 
 	if len(command) == 0 {
 		fmt.Fprintf(os.Stderr, "%sError: no command specified. Use 'aegis run -- <command>'.%s\n", colorRed, colorReset)

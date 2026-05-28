@@ -41,12 +41,15 @@ jobs:
         with:
           go-version: '1.24'
 
+      - name: Install gopls
+        run: go install golang.org/x/tools/gopls@latest
+
       - name: Build AegisLSP
         run: go build -o ./aegis ./cmd/aegislsp
 
       - name: Build with AegisLSP protection
-        run: ./aegis run --no-sandbox -- go build ./...
+        run: ./aegis run --no-sandbox --lsp "$(go env GOPATH)/bin/gopls" -- go build ./...
 
       - name: Test with AegisLSP protection
-        run: ./aegis run --no-sandbox -- go test ./...
+        run: ./aegis run --no-sandbox --lsp "$(go env GOPATH)/bin/gopls" -- go test ./...
 
