@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -262,13 +263,42 @@ func TestStreamParser_SourceTracking(t *testing.T) {
 // ProcessSpawner tests
 // ---------------------------------------------------------------------------
 
+func testShellCommand(script string) (string, []string) {
+	if runtime.GOOS == "windows" {
+		return "cmd", []string{"/c", script}
+	}
+	return "sh", []string{"-c", script}
+}
+
+func longRunningCommand() (string, []string) {
+	if runtime.GOOS == "windows" {
+		return "cmd", []string{"/c", "ping -n 60 127.0.0.1"}
+	}
+	return "sh", []string{"-c", "sleep 60"}
+}
+
+func busyCommand() (string, []string) {
+	if runtime.GOOS == "windows" {
+		return "cmd", []string{"/c", "for /L %i in (1,1,1000000) do @echo %i"}
+	}
+	return "sh", []string{"-c", "while true; do echo x; done"}
+}
+
+func mixedOutputCommand() (string, []string) {
+	if runtime.GOOS == "windows" {
+		return "cmd", []string{"/c", "echo stdout_line & echo main.go:10:5: some_error 1>&2"}
+	}
+	return "sh", []string{"-c", "echo stdout_line; echo main.go:10:5: some_error >&2"}
+}
+
 func TestProcessSpawner_SuccessCommand(t *testing.T) {
 	spawner := NewProcessSpawner()
 	ctx := context.Background()
 
+	name, args := testShellCommand("echo hello")
 	config := ProcessConfig{
-		Name: "cmd",
-		Args: []string{"/c", "echo", "hello"},
+		Name: name,
+		Args: args,
 	}
 
 	stdout, stderr, err := spawner.Spawn(ctx, config)
@@ -300,9 +330,10 @@ func TestProcessSpawner_FailingCommand(t *testing.T) {
 	spawner := NewProcessSpawner()
 	ctx := context.Background()
 
+	name, args := testShellCommand("exit 42")
 	config := ProcessConfig{
-		Name: "cmd",
-		Args: []string{"/c", "exit", "42"},
+		Name: name,
+		Args: args,
 	}
 
 	stdout, stderr, err := spawner.Spawn(ctx, config)
@@ -342,9 +373,10 @@ func TestProcessSpawner_Kill(t *testing.T) {
 	spawner := NewProcessSpawner()
 	ctx := context.Background()
 
+	name, args := longRunningCommand()
 	config := ProcessConfig{
-		Name: "cmd",
-		Args: []string{"/c", "ping", "-n", "60", "127.0.0.1"},
+		Name: name,
+		Args: args,
 	}
 
 	stdout, stderr, err := spawner.Spawn(ctx, config)
@@ -378,9 +410,10 @@ func TestProcessSpawner_Timeout(t *testing.T) {
 	spawner := NewProcessSpawner()
 	ctx := context.Background()
 
+	name, args := busyCommand()
 	config := ProcessConfig{
-		Name:    "cmd",
-		Args:    []string{"/c", "for /L %i in (1,1,1000000) do @echo %i"},
+		Name:    name,
+		Args:    args,
 		Timeout: 500 * time.Millisecond,
 	}
 
@@ -645,10 +678,10 @@ func TestInterceptor_FullLifecycle(t *testing.T) {
 	inter := New(spawner, parser, le, ee)
 
 	ctx := context.Background()
-	// Use cmd /c to write to both stdout and stderr
+	name, args := mixedOutputCommand()
 	err := inter.Start(ctx, ProcessConfig{
-		Name: "cmd",
-		Args: []string{"/c", "echo stdout_line & echo main.go:10:5: some_error 1>&2"},
+		Name: name,
+		Args: args,
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
